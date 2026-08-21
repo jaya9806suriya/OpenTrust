@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { initialSuspiciousSession, safeDemoSession } from './data/mockData';
+import { buildDynamicSession } from './lib/dynamicAnalysis';
 import { AnalysisSession, NavigationTab } from './types';
 import { HomeScreen } from './components/HomeScreen';
 import { SideNavBar } from './components/SideNavBar';
@@ -58,47 +59,8 @@ export function App() {
     type: 'github' | 'zip',
     demoMode: 'safe' | 'suspicious' = 'suspicious'
   ) => {
-    let targetName = typeof target === 'string' ? target : target.name;
-    const lowerTarget = targetName.toLowerCase();
-    const isSafe = demoMode === 'safe' || 
-                   lowerTarget.includes('safe') || 
-                   lowerTarget.includes('clean') ||
-                   lowerTarget.includes('requests') ||
-                   lowerTarget.includes('flask') ||
-                   lowerTarget.includes('react') ||
-                   lowerTarget.includes('vue');
-    const base = isSafe ? safeDemoSession : initialSuspiciousSession;
-    
-    if (typeof target === 'string') {
-      if (type === 'zip') {
-        targetName = target.replace(/\.(zip|tar\.gz)$/i, '');
-      } else {
-        const match = target.match(/github\.com\/([^/]+)\/([^/#?]+)/);
-        if (match) {
-          targetName = `${match[1]}/${match[2].replace(/\.git$/, '')}`;
-        } else {
-          targetName = target.split('/').filter(Boolean).pop() || 'custom-repository';
-        }
-      }
-    } else {
-      targetName = target.name.replace(/\.(zip|tar\.gz)$/i, '');
-    }
-
-    const tempId = `OT-${Date.now().toString(36).toUpperCase()}`;
-    const newSession: AnalysisSession = {
-      ...base,
-      id: tempId,
-      targetRepo: targetName,
-      repoUrl: typeof target === 'string' ? target : undefined,
-      repoType: type,
-      status: 'running',
-      currentStageIndex: 0,
-      elapsedSeconds: 0,
-      stages: base.stages.map((st, i) => ({
-        ...st,
-        status: i === 0 ? 'running' : 'pending'
-      }))
-    };
+    // Generate a unique dynamic session tailored to the target repository URL
+    const newSession = buildDynamicSession(target, type, demoMode);
 
     setSession(newSession);
     setCurrentTab('pipeline');
@@ -130,7 +92,7 @@ export function App() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(
             isBuiltinDemo
-              ? { demoType: isSafe ? 'safe' : 'suspicious' }
+              ? { demoType: newSession.verdict === 'TRUST' ? 'safe' : 'suspicious' }
               : { repoUrl: target }
           )
         });
