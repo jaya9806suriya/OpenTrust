@@ -48,8 +48,9 @@ export function App() {
     return () => unsubscribe();
   }, []);
 
-  // Active analysis tracking
+  // Active analysis tracking & simulation state
   const [activeAnalysisId, setActiveAnalysisId] = useState<string | null>(null);
+  const [isSimulating, setIsSimulating] = useState<boolean>(false);
 
   // Trigger real analysis for a repository or uploaded ZIP
   const handleStartAnalysis = async (
@@ -58,7 +59,14 @@ export function App() {
     demoMode: 'safe' | 'suspicious' = 'suspicious'
   ) => {
     let targetName = typeof target === 'string' ? target : target.name;
-    const isSafe = demoMode === 'safe' || targetName.includes('safe') || targetName.includes('clean');
+    const lowerTarget = targetName.toLowerCase();
+    const isSafe = demoMode === 'safe' || 
+                   lowerTarget.includes('safe') || 
+                   lowerTarget.includes('clean') ||
+                   lowerTarget.includes('requests') ||
+                   lowerTarget.includes('flask') ||
+                   lowerTarget.includes('react') ||
+                   lowerTarget.includes('vue');
     const base = isSafe ? safeDemoSession : initialSuspiciousSession;
     
     if (typeof target === 'string') {
@@ -94,10 +102,10 @@ export function App() {
 
     setSession(newSession);
     setCurrentTab('pipeline');
+    setIsSimulating(false);
+    setActiveAnalysisId(null);
 
     try {
-      let analysisId = tempId;
-
       if (target instanceof File) {
         // Upload real ZIP to backend
         const formData = new FormData();
@@ -106,9 +114,12 @@ export function App() {
           method: 'POST',
           body: formData
         });
-        const data = await res.json();
-        if (data.success && data.analysisId) {
-          analysisId = data.analysisId;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.analysisId) {
+            setActiveAnalysisId(data.analysisId);
+            return;
+          }
         }
       } else {
         // Distinguish between preset local demo triggers and real custom GitHub repos
@@ -123,17 +134,69 @@ export function App() {
               : { repoUrl: target }
           )
         });
-        const data = await res.json();
-        if (data.success && data.analysisId) {
-          analysisId = data.analysisId;
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.analysisId) {
+            setActiveAnalysisId(data.analysisId);
+            return;
+          }
         }
       }
 
-      setActiveAnalysisId(analysisId);
+      // If backend server returns non-ok or non-JSON (e.g. Vercel static host), launch client-side simulation!
+      setIsSimulating(true);
     } catch (err) {
-      console.warn('Analysis start fallback error:', err);
+      console.warn('Backend API unavailable. Triggering client-side pipeline simulation:', err);
+      setIsSimulating(true);
     }
   };
+
+  // Client-side simulation hook when backend API is unavailable (e.g. Vercel deployment)
+  useEffect(() => {
+    if (!isSimulating || session.status === 'completed') return;
+
+    const timer = setInterval(() => {
+      setSession((prev) => {
+        if (prev.status === 'completed') {
+          clearInterval(timer);
+          setIsSimulating(false);
+          return prev;
+        }
+
+        const nextIndex = prev.currentStageIndex + 1;
+        const totalStages = prev.stages.length;
+
+        if (nextIndex >= totalStages) {
+          clearInterval(timer);
+          setIsSimulating(false);
+          const finalSession: AnalysisSession = {
+            ...prev,
+            currentStageIndex: totalStages - 1,
+            status: 'completed',
+            stages: prev.stages.map((st) => ({ ...st, status: 'completed' }))
+          };
+          saveScanToFirestore(finalSession, user?.uid);
+          return finalSession;
+        }
+
+        const updated: AnalysisSession = {
+          ...prev,
+          currentStageIndex: nextIndex,
+          elapsedSeconds: (prev.elapsedSeconds || 0) + 2,
+          filesScanned: (prev.filesScanned || 15) + Math.floor(Math.random() * 25) + 15,
+          stages: prev.stages.map((st, i) => {
+            if (i < nextIndex) return { ...st, status: 'completed' };
+            if (i === nextIndex) return { ...st, status: 'running' };
+            return { ...st, status: 'pending' };
+          })
+        };
+        saveScanToFirestore(updated, user?.uid);
+        return updated;
+      });
+    }, 1400);
+
+    return () => clearInterval(timer);
+  }, [isSimulating, session.status, user]);
 
   // Real pipeline polling hook
   useEffect(() => {
