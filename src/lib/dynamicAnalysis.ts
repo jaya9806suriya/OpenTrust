@@ -24,43 +24,29 @@ export function buildDynamicSession(
   }
 
   const lowerName = targetName.toLowerCase();
+  const lowerUrl = (targetUrl || '').toLowerCase();
 
-  // Explicit suspicious triggers vs safe triggers
-  const isExplicitSuspicious = (
-    demoMode === 'suspicious' && (
-      lowerName.includes('suspicious') ||
-      lowerName.includes('crypto-helper') ||
-      lowerName.includes('stealer') ||
-      lowerName.includes('malware') ||
-      lowerName.includes('backdoor') ||
-      lowerName.includes('exploit') ||
-      lowerName.includes('keylogger') ||
-      lowerName.includes('trojan') ||
-      lowerName.includes('phish') ||
-      lowerName.includes('unsafe')
-    )
+  // Suspicious triggers: only flag BLOCK if repository name or URL contains explicit threat keywords
+  const isSuspicious = (
+    lowerName.includes('suspicious') ||
+    lowerName.includes('crypto-helper') ||
+    lowerName.includes('stealer') ||
+    lowerName.includes('malware') ||
+    lowerName.includes('backdoor') ||
+    lowerName.includes('exploit') ||
+    lowerName.includes('keylogger') ||
+    lowerName.includes('trojan') ||
+    lowerName.includes('phish') ||
+    lowerName.includes('unsafe') ||
+    lowerUrl.includes('suspicious') ||
+    lowerUrl.includes('crypto-helper') ||
+    lowerUrl.includes('stealer') ||
+    (demoMode === 'suspicious' && lowerName.includes('crypto-helper'))
   );
-
-  const isExplicitSafe = (
-    demoMode === 'safe' || 
-    lowerName.includes('safe') || 
-    lowerName.includes('clean') || 
-    lowerName.includes('requests') || 
-    lowerName.includes('flask') || 
-    lowerName.includes('react') || 
-    lowerName.includes('vue') ||
-    lowerName.includes('express') ||
-    lowerName.includes('angular') ||
-    lowerName.includes('next') ||
-    lowerName.includes('demo')
-  );
-
-  // Default custom repos entered by users to SAFE/TRUST unless explicitly suspicious
-  const isSuspicious = isExplicitSuspicious || (!isExplicitSafe && lowerName.includes('suspicious'));
 
   const tempId = `OT-${Date.now().toString(36).toUpperCase()}`;
 
-  // Deterministic hash based on target string for consistent file counts and scores
+  // Deterministic hash based on target string for consistent file counts, licenses, and scores
   let hash = 0;
   for (let i = 0; i < targetName.length; i++) {
     hash = (hash << 5) - hash + targetName.charCodeAt(i);
@@ -85,7 +71,7 @@ export function buildDynamicSession(
       elapsedSeconds: 0,
       currentStageIndex: 0,
       generatedAt: 'Just now',
-      executiveSummary: `Our behavioral analysis engine detected anomalous lateral movement and credential harvesting patterns during the sandboxed execution phase of '${targetName}'. The package attempts to obfuscate its payload and establishes unauthorized outbound connections.`,
+      executiveSummary: `Our behavioral analysis engine detected anomalous lateral movement and credential harvesting patterns during the sandboxed execution phase of repository '${targetName}'. The package attempts to obfuscate its payload and establishes unauthorized outbound connections.`,
       riskFlags: [
         {
           id: 'rf-1',

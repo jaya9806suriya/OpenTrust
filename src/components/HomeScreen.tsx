@@ -48,8 +48,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (activeTab === 'github') {
-      const url = githubUrl.trim() || 'https://github.com/opentrust-demo/crypto-helper';
-      onStartAnalysis(url, 'github', url.includes('safe') ? 'safe' : 'suspicious');
+      const url = githubUrl.trim() || 'https://github.com/psf/requests';
+      const isSuspiciousKeyword = url.toLowerCase().includes('crypto-helper') || 
+                                  url.toLowerCase().includes('suspicious') || 
+                                  url.toLowerCase().includes('stealer') || 
+                                  url.toLowerCase().includes('malware');
+      onStartAnalysis(url, 'github', isSuspiciousKeyword ? 'suspicious' : 'safe');
     } else {
       if (selectedFile) {
         onStartAnalysis(selectedFile, 'zip', 'suspicious');
