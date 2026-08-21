@@ -1,0 +1,6 @@
+{
+  "name": "OpenTrust",
+  "description": "Cybersecurity Intelligence Platform - Inspect repository code, observe runtime behavior, and evaluate risk before running.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
